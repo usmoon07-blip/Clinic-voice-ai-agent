@@ -1,0 +1,531 @@
+// Klinika AI Voice Agent + navbat tizimi — ma'lumotlar bazasi sxemasi
+// Barcha vaqtlar bazada UTC da saqlanadi, ko'rsatishda Asia/Tashkent ga o'giriladi.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── ENUMS ─────────────────────────
+
+enum Source {
+  TELEGRAM
+  VOICE
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CHECKED_IN
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum VisitType {
+  FIRST
+  FOLLOW_UP
+}
+
+enum CalendarStatus {
+  OPEN
+  CLOSED
+}
+
+enum CancelledBy {
+  PATIENT
+  ADMIN
+  DOCTOR
+  SYSTEM
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum Language {
+  UZ
+  RU
+}
+
+enum ServiceCategory {
+  CONSULTATION
+  DIAGNOSTICS
+  LABORATORY
+  PROCEDURE
+  MINOR_SURGERY
+  TREATMENT_COURSE
+  VACCINATION
+  DENTISTRY
+}
+
+enum RoomType {
+  CONSULTATION
+  ULTRASOUND
+  ECG
+  PROCEDURE
+  LABORATORY
+  XRAY
+  OPERATING
+  DENTAL
+}
+
+enum CallOutcome {
+  BOOKED
+  NOT_BOOKED
+  ESCALATED
+  DROPPED
+  EMERGENCY
+  RESCHEDULED
+  CANCELLED
+  INFO_ONLY
+}
+
+enum ExceptionType {
+  DAY_OFF
+  VACATION
+  HOLIDAY
+  EXTRA_WORKING_DAY
+}
+
+enum WaitlistStatus {
+  WAITING
+  OFFERED
+  BOOKED
+  CANCELLED
+  EXPIRED
+}
+
+enum AdminRole {
+  SUPERADMIN
+  ADMIN
+  DOCTOR
+}
+
+enum CourseStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum Relation {
+  SELF
+  CHILD
+  SPOUSE
+  PARENT
+  OTHER
+}
+
+// ───────────────────────── MODELS ─────────────────────────
+
+model Patient {
+  id                Int       @id @default(autoincrement())
+  telegramId        String?   @unique
+  firstName         String
+  lastName          String?
+  phone             String    @unique // har doim +998XXXXXXXXX ko'rinishida
+  birthDate         DateTime?
+  gender            Gender?
+  medicalCardNumber String    @unique
+
+  // Oila profillari: bola yoki qarindosh profili kattaga bog'lanadi
+  guardianId         Int?
+  guardian           Patient?  @relation("FamilyMembers", fields: [guardianId], references: [id], onDelete: SetNull)
+  familyMembers      Patient[] @relation("FamilyMembers")
+  relationToGuardian Relation  @default(SELF)
+
+  source   Source   @default(TELEGRAM)
+  language Language @default(UZ)
+
+  // Nozik xizmat nomlari xabarlarda yozilmasin
+  discreetMode         Boolean   @default(true)
+  notificationsConsent Boolean   @default(true)
+  recordingConsent     Boolean   @default(false)
+  recordingConsentAt   DateTime?
+
+  noShowCount     Int     @default(0)
+  isBlacklisted   Boolean @default(false)
+  blacklistReason String?
+  adminNote       String?
+
+  appointments    Appointment[]
+  waitlistEntries Waitlist[]
+  courses         TreatmentCourse[]
+  reviews         Review[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([phone])
+  @@index([guardianId])
+}
+
+model Specialty {
+  id             Int      @id @default(autoincrement())
+  nameUz         String
+  nameRu         String
+  descriptionUz  String?
+  descriptionRu  String?
+  icon           String?
+  // Shikoyat/so'z sinonimlari — marshrutlash lug'ati (tashxis EMAS)
+  symptomAliases String[] @default([])
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+
+  doctors         Doctor[]
+  services        Service[]
+  waitlistEntries Waitlist[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Doctor {
+  id          Int       @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  photoUrl    String?
+  specialtyId Int
+  specialty   Specialty @relation(fields: [specialtyId], references: [id])
+
+  category        String? // oliy toifa, t.f.n. va h.k.
+  experienceYears Int      @default(0)
+  licenseNumber   String?
+  bioUz           String?
+  bioRu           String?
+  gender          Gender
+  minAge          Int      @default(0)
+  maxAge          Int      @default(120)
+  languages       String[] @default(["uz", "ru"])
+
+  phone      String?
+  telegramId String?
+
+  firstVisitPrice Int @default(0) // so'mda
+  followUpPrice   Int @default(0)
+
+  isActive             Boolean        @default(true)
+  calendarStatus       CalendarStatus @default(OPEN)
+  calendarClosedReason String?
+
+  workingHours    WorkingHour[]
+  exceptions      ScheduleException[]
+  appointments    Appointment[]
+  services        Service[]           @relation("DoctorServices")
+  waitlistEntries Waitlist[]
+  courses         TreatmentCourse[]
+  adminUsers      AdminUser[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([specialtyId])
+}
+
+model Service {
+  id            Int      @id @default(autoincrement())
+  photoUrl      String?
+  nameUz        String
+  nameRu        String
+  descriptionUz String?
+  descriptionRu String?
+  // Xalq tilidagi nomlar: "UZI", "analiz", "kardiogramma" ...
+  aliases       String[] @default([])
+
+  oldPrice        Int?
+  price           Int
+  category        ServiceCategory @default(CONSULTATION)
+  durationMinutes Int             @default(30)
+
+  specialtyId Int
+  specialty   Specialty @relation(fields: [specialtyId], references: [id])
+  doctors     Doctor[]  @relation("DoctorServices")
+
+  requiredRoomType RoomType?
+  minAge           Int       @default(0)
+  maxAge           Int       @default(120)
+
+  preparationUz     String?
+  preparationRu     String?
+  prepReminderHours Int     @default(24)
+
+  // true bo'lsa xizmat nomi avtomatik xabarlarga yozilmaydi
+  isSensitive Boolean @default(false)
+
+  isCourse            Boolean @default(false)
+  sessionCount        Int     @default(1)
+  sessionIntervalDays Int     @default(1)
+
+  isActive Boolean @default(true)
+
+  appointments    Appointment[]
+  waitlistEntries Waitlist[]
+  courses         TreatmentCourse[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([specialtyId])
+}
+
+model Room {
+  id           Int           @id @default(autoincrement())
+  name         String
+  type         RoomType      @default(CONSULTATION)
+  isActive     Boolean       @default(true)
+  appointments Appointment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Appointment {
+  id Int @id @default(autoincrement())
+
+  patientId Int
+  patient   Patient @relation(fields: [patientId], references: [id])
+  doctorId  Int
+  doctor    Doctor  @relation(fields: [doctorId], references: [id])
+  serviceId Int
+  service   Service @relation(fields: [serviceId], references: [id])
+  roomId    Int?
+  room      Room?   @relation(fields: [roomId], references: [id])
+
+  startTime DateTime // UTC
+  endTime   DateTime // UTC
+  visitType VisitType @default(FIRST)
+  price     Int       @default(0)
+
+  status        AppointmentStatus @default(CONFIRMED)
+  source        Source            @default(TELEGRAM)
+  bookedByPhone String? // ota-ona bola uchun yozdirganda
+
+  onTheWay   Boolean   @default(false)
+  onTheWayAt DateTime?
+
+  // Har bir eslatma bir martadan yuborilishi uchun
+  dayBeforeReminderSentAt  DateTime?
+  hourBeforeReminderSentAt DateTime?
+  prepInstructionSentAt    DateTime?
+  feedbackRequestedAt      DateTime?
+  patientConfirmedAt       DateTime?
+
+  courseId      Int?
+  course        TreatmentCourse? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  sessionNumber Int?
+
+  cancelledBy  CancelledBy?
+  cancelReason String?
+  cancelledAt  DateTime?
+
+  patientNote    String? // tibbiy ma'lumot emas
+  idempotencyKey String? @unique
+
+  callLog CallLog?
+  review  Review?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Ikki marta band qilishning oldini olish (DB darajasida)
+  @@unique([doctorId, startTime], name: "doctor_slot")
+  @@unique([roomId, startTime], name: "room_slot")
+  @@index([startTime])
+  @@index([patientId])
+  @@index([status])
+}
+
+model WorkingHour {
+  id         Int     @id @default(autoincrement())
+  doctorId   Int
+  doctor     Doctor  @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int // 1 = dushanba ... 7 = yakshanba (ISO)
+  startTime  String // "09:00" (Toshkent vaqti)
+  endTime    String // "17:00"
+  breakStart String? // "13:00"
+  breakEnd   String? // "14:00"
+  isWorking  Boolean @default(true)
+  shift      String? // "morning" | "evening"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([doctorId, dayOfWeek])
+}
+
+model ScheduleException {
+  id        Int           @id @default(autoincrement())
+  doctorId  Int
+  doctor    Doctor        @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  date      DateTime // sana (kun boshi, Toshkent bo'yicha)
+  type      ExceptionType @default(DAY_OFF)
+  startTime String? // EXTRA_WORKING_DAY uchun
+  endTime   String?
+  note      String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([doctorId, date])
+  @@index([date])
+}
+
+model Waitlist {
+  id          Int        @id @default(autoincrement())
+  patientId   Int
+  patient     Patient    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  serviceId   Int?
+  service     Service?   @relation(fields: [serviceId], references: [id])
+  specialtyId Int?
+  specialty   Specialty? @relation(fields: [specialtyId], references: [id])
+  doctorId    Int?
+  doctor      Doctor?    @relation(fields: [doctorId], references: [id])
+
+  dateFrom           DateTime
+  dateTo             DateTime
+  preferredPartOfDay String? // "morning" | "afternoon" | "any"
+
+  status         WaitlistStatus @default(WAITING)
+  offeredSlot    DateTime?
+  offerExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model TreatmentCourse {
+  id        Int     @id @default(autoincrement())
+  patientId Int
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId  Int
+  doctor    Doctor  @relation(fields: [doctorId], references: [id])
+  serviceId Int
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  sessionCount Int
+  intervalDays Int          @default(1)
+  startDate    DateTime
+  status       CourseStatus @default(ACTIVE)
+
+  appointments Appointment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CallLog {
+  id          Int       @id @default(autoincrement())
+  callSid     String?   @unique
+  phone       String // maskalangan holda ham saqlanadi
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  durationSec Int?
+
+  outcome            CallOutcome @default(DROPPED)
+  transcript         String?     @db.Text
+  detectedLanguage   Language?
+  misunderstandCount Int         @default(0)
+  avgLatencyMs       Int?
+
+  appointmentId Int?         @unique
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  recordingUrl String?
+  deleteAfter  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([startedAt])
+  @@index([outcome])
+}
+
+model Review {
+  id            Int         @id @default(autoincrement())
+  appointmentId Int         @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientId     Int
+  patient       Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  rating        Int // 1..5
+  comment       String?
+  isPublished   Boolean     @default(false)
+
+  createdAt DateTime @default(now())
+}
+
+model AdminUser {
+  id           Int       @id @default(autoincrement())
+  login        String    @unique
+  passwordHash String
+  fullName     String
+  role         AdminRole @default(ADMIN)
+  doctorId     Int?
+  doctor       Doctor?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  auditLogs AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id          Int        @id @default(autoincrement())
+  adminUserId Int?
+  adminUser   AdminUser? @relation(fields: [adminUserId], references: [id], onDelete: SetNull)
+  action      String // CREATE | UPDATE | DELETE | VIEW | LOGIN
+  entity      String // "Patient", "Appointment", ...
+  entityId    String?
+  oldValue    Json?
+  newValue    Json?
+  ip          String?
+  createdAt   DateTime   @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model SiteSetting {
+  id               Int     @id @default(1)
+  clinicName       String  @default("Klinika")
+  phone            String  @default("")
+  address          String  @default("")
+  landmark         String?
+  latitude         Float?
+  longitude        Float?
+  socialLink       String?
+  logoUrl          String?
+  licenseNumber    String?
+  workingHoursText String  @default("Dush-Shan 08:00-18:00")
+
+  cancellationWindowMinutes Int     @default(120)
+  minLeadTimeMinutes        Int     @default(30)
+  appointmentBufferMinutes  Int     @default(5)
+  noShowThreshold           Int     @default(3)
+  recordingRetentionDays    Int     @default(90)
+  discreetModeDefault       Boolean @default(true)
+  emergencyPhone            String  @default("103")
+  operatorPhone             String?
+
+  updatedAt DateTime @updatedAt
+}
+
+model CallbackRequest {
+  id        Int       @id @default(autoincrement())
+  phone     String
+  reason    String?
+  note      String?
+  isHandled Boolean   @default(false)
+  handledAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([isHandled])
+}
