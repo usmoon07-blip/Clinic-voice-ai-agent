@@ -1,10 +1,18 @@
 'use strict';
 /**
- * TRIAJ: shoshilinch holat belgilarini aniqlash va mutaxassisga yo'naltirish.
+ * TRIAJ: qo'ng'iroq shoshilinchligini baholash va mutaxassisga yo'naltirish.
  *
- * MUHIM: bu TASHXIS EMAS. Bu shunchaki kalit so'zlar lug'ati:
- *  - xavfli belgi topilsa -> navbat olish to'xtatiladi, 103 va operator;
- *  - oddiy shikoyat bo'lsa -> mos mutaxassislik taklif qilinadi.
+ * MUHIM: bu TASHXIS EMAS. Bu kalit so'zlar lug'ati. Uchta daraja bor:
+ *
+ *  CRITICAL — hayot uchun xavf bo'lishi mumkin (ko'krak og'rig'i, nafas qisilishi,
+ *             hushdan ketish, kuchli qon ketish). Bemor "103 ga qo'ng'iroq qiling"
+ *             deb qaytarilmaydi: qo'ng'iroq DARHOL navbatchi shifokorga ulanadi,
+ *             klinika xodimlariga ogohlantirish yuboriladi, 103 esa qo'shimcha
+ *             maslahat sifatida aytiladi.
+ *  URGENT   — bugun ko'rilishi kerak (kuchli og'riq, yuqori harorat, qayt qilish).
+ *             Navbat olish to'xtatilmaydi — aksincha, bugungi eng yaqin vaqt
+ *             taklif qilinadi va navbat "shoshilinch" deb belgilanadi.
+ *  ROUTINE  — oddiy navbat.
  */
 const { prisma } = require('../database/connection');
 
@@ -144,6 +152,46 @@ function detectEmergency(text) {
   return { isEmergency: matched.length > 0, matched };
 }
 
+
+/**
+ * Bugun ko'rilishi kerak bo'lgan, lekin tez yordam chaqirishni talab qilmaydigan
+ * holatlar. Bular navbat olishni TO'XTATMAYDI — faqat ustuvorlik beradi.
+ */
+const URGENT_PATTERNS = [
+  'chidab bolmay', 'chiday olmay', 'bardosh berolmay', 'kuchli ogri', 'juda ogri',
+  'qattiq ogri', 'ogriq qolmayap', 'qusyap', 'qayt qilyap', 'qusmoqda',
+  'shoshilinch', 'tezroq', 'bugunoq', 'bugun kerak', 'zudlik',
+  'уколол', 'сильная боль', 'невыносим', 'терпеть не могу', 'рвота', 'рвет',
+  'срочно', 'сегодня надо', 'очень больно',
+];
+
+/** Kattada 38-39.4 harorat — shoshilinch emas, lekin bugun ko'rilsin. */
+function hasModerateFever(text) {
+  for (const re of HIGH_FEVER_PATTERNS) {
+    const m = text.match(re);
+    if (!m) continue;
+    const value = parseFloat(String(m[1]).replace(',', '.'));
+    if (value >= 38 && value < 39.5) return true;
+  }
+  return false;
+}
+
+/**
+ * Qo'ng'iroq shoshilinchligini baholash.
+ * @returns {{level: 'CRITICAL'|'URGENT'|'ROUTINE', matched: string[]}}
+ */
+function assess(text) {
+  const critical = detectEmergency(text);
+  if (critical.isEmergency) return { level: 'CRITICAL', matched: critical.matched };
+
+  const t = normalize(text);
+  const matched = URGENT_PATTERNS.filter((p) => t.includes(normalize(p)));
+  if (hasModerateFever(t)) matched.push('fever:moderate');
+
+  if (matched.length > 0) return { level: 'URGENT', matched };
+  return { level: 'ROUTINE', matched: [] };
+}
+
 /**
  * Shikoyat matnidan mos mutaxassislikni topish (lug'at asosida).
  * @param {string} text
@@ -212,7 +260,9 @@ function wantsOperator(text) {
 }
 
 module.exports = {
+  assess,
   detectEmergency,
+  URGENT_PATTERNS,
   routeToSpecialty,
   isMedicalAdviceRequest,
   wantsOperator,

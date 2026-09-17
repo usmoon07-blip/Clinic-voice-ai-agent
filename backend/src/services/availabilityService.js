@@ -23,6 +23,31 @@ const config = require('../config/default');
 // Bu statuslar vaqtni band qiladi
 const BLOCKING_STATUSES = ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'COMPLETED'];
 
+
+/**
+ * Bemor shu shifokorda avval bo'lganmi? Birlamchi va takroriy qabul
+ * davomiyligi ham, narxi ham har xil bo'ladi.
+ */
+async function detectVisitType(patientId, doctorId) {
+  if (!patientId || !doctorId) return 'FIRST';
+  const previous = await prisma.appointment.count({
+    where: { patientId: Number(patientId), doctorId: Number(doctorId), status: 'COMPLETED' },
+  });
+  return previous > 0 ? 'FOLLOW_UP' : 'FIRST';
+}
+
+/**
+ * Qabul davomiyligi (daqiqa).
+ * Takroriy qabul uchun xizmatda `followUpDurationMinutes` ko'rsatilgan bo'lsa — o'sha,
+ * aks holda odatdagi `durationMinutes`.
+ */
+function durationFor(service, visitType = 'FIRST') {
+  if (visitType === 'FOLLOW_UP' && service.followUpDurationMinutes) {
+    return service.followUpDurationMinutes;
+  }
+  return service.durationMinutes;
+}
+
 /** Ikki interval kesishadimi? */
 function overlaps(aStart, aEnd, bStart, bEnd) {
   return aStart < bEnd && bStart < aEnd;
@@ -105,6 +130,7 @@ async function getAvailableSlots({
   dateFrom,
   dateTo,
   patientAge = null,
+  patientId = null,
   limit = 100,
 }) {
   const settings = await settingsService.getSettings();
@@ -170,8 +196,16 @@ async function getAvailableSlots({
     : await prisma.room.findMany({ where: { isActive: true, type: 'CONSULTATION' } });
   if (usableRooms.length === 0) return { slots: [], reason: 'NO_ROOM' };
 
-  const duration = service.durationMinutes;
-  const step = duration + (settings.appointmentBufferMinutes || 0);
+  // Takroriy qabul qisqaroq bo'lishi mumkin — shuning uchun bemor kim ekanini bilsak,
+  // bo'sh vaqtlarni AYNAN shu bemorga to'g'ri keladigan davomiylik bilan hisoblaymiz.
+  const visitTypes = new Map();
+  if (patientId) {
+    for (const d of eligibleDoctors) {
+      // eslint-disable-next-line no-await-in-loop
+      visitTypes.set(d.id, await detectVisitType(patientId, d.id));
+    }
+  }
+
   const earliest = time.now().plus({ minutes: settings.minLeadTimeMinutes || 0 }).toJSDate();
 
   const slots = [];
@@ -187,6 +221,10 @@ async function getAvailableSlots({
       );
       const windows = workWindowsForDay({ workingHour, exception });
       if (windows.length === 0) continue;
+
+      const visitType = visitTypes.get(doctor.id) || 'FIRST';
+      const duration = durationFor(service, visitType);
+      const step = duration + (settings.appointmentBufferMinutes || 0);
 
       for (const win of windows) {
         for (let minute = win.start; minute + duration <= win.end; minute += step) {
@@ -223,6 +261,7 @@ async function getAvailableSlots({
             serviceNameUz: service.nameUz,
             serviceNameRu: service.nameRu,
             durationMinutes: duration,
+            visitType,
             price: service.price,
             roomId: freeRoom.id,
             roomName: freeRoom.name,
@@ -245,7 +284,10 @@ async function getAvailableSlots({
  * Bitta aniq vaqt hali ham bo'shmi? Navbat yaratishdan OLDIN qayta tekshiriladi.
  * @returns {Promise<{ok: boolean, roomId?: number, reason?: string, endTime?: Date}>}
  */
-async function checkSlot({ doctorId, serviceId, startTime, patientAge = null, ignoreAppointmentId = null }) {
+async function checkSlot({
+  doctorId, serviceId, startTime, patientAge = null, ignoreAppointmentId = null,
+  patientId = null, durationMinutes = null,
+}) {
   const settings = await settingsService.getSettings();
   const service = await prisma.service.findUnique({ where: { id: Number(serviceId) } });
   if (!service || !service.isActive) return { ok: false, reason: 'SERVICE_NOT_FOUND' };
@@ -261,7 +303,10 @@ async function checkSlot({ doctorId, serviceId, startTime, patientAge = null, ig
   if (!ageFits(patientAge, doctor.minAge, doctor.maxAge)) return { ok: false, reason: 'AGE_NOT_ALLOWED' };
 
   const start = startTime instanceof Date ? startTime : new Date(startTime);
-  const end = new Date(start.getTime() + service.durationMinutes * 60000);
+  const visitType = await detectVisitType(patientId, doctorId);
+  // Admin qo'lda uzaytirgan bo'lsa (murakkab holat) — o'sha davomiylik ishlatiladi
+  const duration = durationMinutes ? Number(durationMinutes) : durationFor(service, visitType);
+  const end = new Date(start.getTime() + duration * 60000);
 
   const earliest = time.now().plus({ minutes: settings.minLeadTimeMinutes || 0 }).toJSDate();
   if (start < earliest) return { ok: false, reason: 'TOO_LATE' };
@@ -274,7 +319,7 @@ async function checkSlot({ doctorId, serviceId, startTime, patientAge = null, ig
   });
   const windows = workWindowsForDay({ workingHour, exception });
   const startMin = time.hhmmToMinutes(time.timeKey(start));
-  const endMin = startMin + service.durationMinutes;
+  const endMin = startMin + duration;
   const insideWindow = windows.some((w) => startMin >= w.start && endMin <= w.end);
   if (!insideWindow) return { ok: false, reason: 'OUTSIDE_WORKING_HOURS' };
 
@@ -300,16 +345,19 @@ async function checkSlot({ doctorId, serviceId, startTime, patientAge = null, ig
   const freeRoom = rooms.find((r) => !busyRoomIds.has(r.id));
   if (!freeRoom) return { ok: false, reason: 'NO_ROOM' };
 
-  return { ok: true, roomId: freeRoom.id, endTime: end, price: service.price, service, doctor };
+  return {
+    ok: true, roomId: freeRoom.id, endTime: end, price: service.price,
+    service, doctor, visitType, durationMinutes: duration,
+  };
 }
 
 /** Qaysi kunlarda umuman bo'sh joy bor (Mini App kalendari uchun). */
-async function getAvailableDates({ doctorId, serviceId, specialtyId, doctorGender, days = 30, patientAge = null }) {
+async function getAvailableDates({ doctorId, serviceId, specialtyId, doctorGender, days = 30, patientAge = null, patientId = null }) {
   const from = time.dateKey(new Date());
   const to = time.dateRange(from, days)[days - 1];
   const { slots } = await getAvailableSlots({
     doctorId, serviceId, specialtyId, doctorGender,
-    dateFrom: from, dateTo: to, patientAge, limit: 5000,
+    dateFrom: from, dateTo: to, patientAge, patientId, limit: 5000,
   });
   const set = new Set(slots.map((s) => s.date));
   return [...set].sort();
@@ -317,6 +365,8 @@ async function getAvailableDates({ doctorId, serviceId, specialtyId, doctorGende
 
 module.exports = {
   getAvailableSlots,
+  detectVisitType,
+  durationFor,
   getAvailableDates,
   checkSlot,
   ageFromBirthDate,

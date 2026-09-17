@@ -54,10 +54,21 @@ class TwilioProvider extends TelephonyProvider {
     );
   }
 
-  transfer({ text, audioUrl, sayLanguage, operatorNumber }) {
+  /**
+   * Operatorga uzatish.
+   * `actionUrl` berilsa, operator javob bermasa Twilio o'sha manzilga qaytadi —
+   * shunda qo'ng'iroq jim uzilmaydi, biz qayta qo'ng'iroq so'rovini yozib olamiz.
+   */
+  transfer({ text, audioUrl, sayLanguage, operatorNumber, actionUrl, ringSeconds = 25 }) {
     const parts = [speak({ text, audioUrl, sayLanguage })];
     if (operatorNumber) {
-      parts.push(`  <Dial timeout="25" callerId="${escapeXml(config.telephony.twilio.phoneNumber)}">${escapeXml(operatorNumber)}</Dial>`);
+      const action = actionUrl ? ` action="${escapeXml(actionUrl)}" method="POST"` : '';
+      parts.push(
+        `  <Dial timeout="${Number(ringSeconds)}"${action} callerId="${escapeXml(config.telephony.twilio.phoneNumber)}">${escapeXml(operatorNumber)}</Dial>`,
+      );
+    } else if (actionUrl) {
+      // Operator raqami sozlanmagan — darhol zaxira oqimiga o'tamiz
+      parts.push(`  <Redirect method="POST">${escapeXml(actionUrl)}</Redirect>`);
     } else {
       parts.push('  <Hangup/>');
     }

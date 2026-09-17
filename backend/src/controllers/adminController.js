@@ -219,7 +219,7 @@ async function rescheduleAppointment(req, res) {
 
 /** Registratura qo'lda navbat yozadi (telefon orqali kelgan bemor uchun ham). */
 async function createAppointment(req, res) {
-  const { phone, firstName, lastName, birthDate, doctorId, serviceId, startTime, note } = req.body || {};
+  const { phone, firstName, lastName, birthDate, doctorId, serviceId, startTime, note, durationMinutes, isUrgent } = req.body || {};
   const patient = await bookingService.findOrCreatePatient({
     phone, firstName, lastName, birthDate, source: 'ADMIN',
   });
@@ -230,6 +230,9 @@ async function createAppointment(req, res) {
     startTime: new Date(startTime),
     source: 'ADMIN',
     patientNote: note || null,
+    // Registratura murakkab holat uchun vaqtni uzaytira oladi (masalan 30 -> 60 daqiqa)
+    durationMinutes: durationMinutes ? Number(durationMinutes) : null,
+    isUrgent: Boolean(isUrgent),
     skipPatientChecks: true,
   });
   await auditService.record({ ...auditService.fromRequest(req), action: 'CREATE', entity: 'Appointment', entityId: appointment.id });
@@ -239,6 +242,7 @@ async function createAppointment(req, res) {
 async function getAvailableSlotsAdmin(req, res) {
   const result = await availability.getAvailableSlots({
     serviceId: Number(req.query.serviceId),
+    patientId: req.query.patientId ? Number(req.query.patientId) : undefined,
     doctorId: req.query.doctorId ? Number(req.query.doctorId) : undefined,
     dateFrom: req.query.date,
     dateTo: req.query.dateTo || req.query.date,
@@ -589,8 +593,13 @@ async function getSettings(req, res) {
 async function updateSettings(req, res) {
   const data = { ...req.body };
   delete data.id;
-  ['cancellationWindowMinutes', 'minLeadTimeMinutes', 'appointmentBufferMinutes', 'noShowThreshold', 'recordingRetentionDays']
+  ['cancellationWindowMinutes', 'minLeadTimeMinutes', 'appointmentBufferMinutes',
+    'noShowThreshold', 'recordingRetentionDays', 'operatorRingSeconds']
     .forEach((k) => { if (data[k] !== undefined) data[k] = Number(data[k]); });
+  ['latitude', 'longitude'].forEach((k) => {
+    if (data[k] !== undefined && data[k] !== null && data[k] !== '') data[k] = Number(data[k]);
+    else if (data[k] === '') data[k] = null;
+  });
 
   const settings = await prisma.siteSetting.update({ where: { id: 1 }, data });
   settingsService.invalidate();

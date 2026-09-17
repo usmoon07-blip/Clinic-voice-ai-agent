@@ -157,6 +157,7 @@ async function getAvailableDates(req, res) {
     age = availability.ageFromBirthDate(p?.birthDate);
   }
   const dates = await availability.getAvailableDates({
+    patientId: patientId ? Number(patientId) : undefined,
     serviceId: Number(serviceId),
     doctorId: doctorId ? Number(doctorId) : undefined,
     specialtyId: specialtyId ? Number(specialtyId) : undefined,
@@ -175,6 +176,7 @@ async function getAvailableSlots(req, res) {
     age = availability.ageFromBirthDate(p?.birthDate);
   }
   const result = await availability.getAvailableSlots({
+    patientId: patientId ? Number(patientId) : undefined,
     serviceId: Number(serviceId),
     doctorId: doctorId ? Number(doctorId) : undefined,
     specialtyId: specialtyId ? Number(specialtyId) : undefined,

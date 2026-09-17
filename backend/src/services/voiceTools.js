@@ -332,6 +332,7 @@ const handlers = {
       dateFrom,
       dateTo,
       patientAge: input.patient_age ?? session.patientAge ?? null,
+      patientId: session.knownPatientId || session.verifiedPatientId || null,
       limit: 60,
     });
 
@@ -359,6 +360,7 @@ const handlers = {
         doctor_name: s.doctorName,
         room: s.roomName,
         price: s.price,
+        duration_minutes: s.durationMinutes,
       })),
       total_found: filtered.length,
     };
@@ -446,6 +448,8 @@ const handlers = {
         startTime: new Date(input.start_time),
         source: 'VOICE',
         bookedByPhone: session.callerPhone,
+        isUrgent: Boolean(session.urgent),
+        urgentReason: session.urgentReason || null,
         // Bir qo'ng'iroq ichida ikki marta chaqirilsa, ikkita navbat yaratilmasin
         idempotencyKey: `voice:${session.callSid}:${input.doctor_id}:${input.start_time}`,
       });

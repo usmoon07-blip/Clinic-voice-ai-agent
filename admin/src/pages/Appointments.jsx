@@ -67,6 +67,8 @@ export default function Appointments({ user }) {
         firstName: creating.firstName,
         lastName: creating.lastName,
         birthDate: creating.birthDate || undefined,
+        durationMinutes: creating.durationMinutes ? Number(creating.durationMinutes) : undefined,
+        isUrgent: Boolean(creating.isUrgent),
         doctorId: creating.slot.doctorId,
         serviceId: creating.serviceId,
         startTime: creating.slot.startUtc,
@@ -119,7 +121,11 @@ export default function Appointments({ user }) {
               <h3>{doctor}</h3>
               {list.sort((a, b) => new Date(a.startTime) - new Date(b.startTime)).map((a) => (
                 <div key={a.id} className={`slot ${a.status === 'CANCELLED' ? 'cancelled' : ''} ${a.status === 'NO_SHOW' ? 'noshow' : ''}`}>
-                  <b>{timeOnly(a.startTime)}</b> {a.patient.firstName} {a.patient.lastName || ''}
+                  <b>{timeOnly(a.startTime)}</b>
+                  <div className="muted small">
+                    {Math.round((new Date(a.endTime) - new Date(a.startTime)) / 60000)} daq
+                    {a.visitType === 'FOLLOW_UP' ? ' · takroriy' : ''}
+                  </div> {a.patient.firstName} {a.patient.lastName || ''}
                   <div className="muted small">{a.service.nameUz}{a.room ? ` · ${a.room.name}` : ''}</div>
                   {a.onTheWay ? <span className="badge green">🚗 Yo'lda</span> : null}
                 </div>
@@ -142,6 +148,7 @@ export default function Appointments({ user }) {
               <tr key={a.id} className={a.onTheWay ? 'clickable' : ''}>
                 <td><b>{timeOnly(a.startTime)}</b></td>
                 <td>
+                  {a.isUrgent ? <div><span className="badge red">⚡ Shoshilinch</span></div> : null}
                   {a.patient.firstName} {a.patient.lastName || ''}
                   {a.onTheWay ? <div><span className="badge green">🚗 Yo'lda</span></div> : null}
                   {a.patient.noShowCount > 0 ? <div className="badge red">Kelmagan: {a.patient.noShowCount}</div> : null}
@@ -221,6 +228,18 @@ export default function Appointments({ user }) {
             const next = { ...creating, date: e.target.value, slot: null };
             setCreating(next); loadSlots(next);
           }} />
+
+          <label>Davomiyligini uzaytirish (daqiqa, ixtiyoriy)</label>
+          <input type="number" placeholder="bo'sh = xizmatning o'z vaqti"
+                 value={creating.durationMinutes || ''}
+                 onChange={(e) => setCreating({ ...creating, durationMinutes: e.target.value })} />
+          <div className="muted small">Murakkab holat uchun: masalan 30 o'rniga 60 daqiqa.</div>
+
+          <label className="row" style={{ color: 'var(--text)', marginTop: 10 }}>
+            <input type="checkbox" style={{ width: 16 }} checked={Boolean(creating.isUrgent)}
+                   onChange={(e) => setCreating({ ...creating, isUrgent: e.target.checked })} />
+            <span>⚡ Shoshilinch (jadvalda ajralib turadi)</span>
+          </label>
 
           <label>Bo'sh vaqtlar</label>
           <div className="row wrap">

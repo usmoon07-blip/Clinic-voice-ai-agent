@@ -29,6 +29,7 @@ export default function Services() {
       oldPrice: edit.oldPrice ? Number(edit.oldPrice) : null,
       category: edit.category,
       durationMinutes: Number(edit.durationMinutes || 30),
+      followUpDurationMinutes: edit.followUpDurationMinutes ? Number(edit.followUpDurationMinutes) : null,
       specialtyId: Number(edit.specialtyId),
       requiredRoomType: edit.requiredRoomType || null,
       minAge: Number(edit.minAge || 0), maxAge: Number(edit.maxAge || 120),
@@ -79,7 +80,10 @@ export default function Services() {
               </td>
               <td className="small">{s.specialty?.nameUz}</td>
               <td className="small">{s.category}</td>
-              <td className="small">{s.durationMinutes} daq</td>
+              <td className="small">
+                {s.durationMinutes} daq
+                {s.followUpDurationMinutes ? <div className="muted">takroriy: {s.followUpDurationMinutes} daq</div> : null}
+              </td>
               <td className="small">{money(s.price)}</td>
               <td className="small">{s.requiredRoomType || '—'}</td>
               <td>
@@ -125,7 +129,17 @@ export default function Services() {
           <div className="row">
             <div className="grow"><label>Narx</label><input type="number" value={edit.price || 0} onChange={(e) => setEdit({ ...edit, price: e.target.value })} /></div>
             <div className="grow"><label>Eski narx (chegirma)</label><input type="number" value={edit.oldPrice || ''} onChange={(e) => setEdit({ ...edit, oldPrice: e.target.value })} /></div>
-            <div className="grow"><label>Davomiyligi (daq)</label><input type="number" value={edit.durationMinutes} onChange={(e) => setEdit({ ...edit, durationMinutes: e.target.value })} /></div>
+            <div className="grow"><label>Birlamchi qabul (daq)</label><input type="number" value={edit.durationMinutes} onChange={(e) => setEdit({ ...edit, durationMinutes: e.target.value })} /></div>
+            <div className="grow">
+              <label>Takroriy qabul (daq)</label>
+              <input type="number" placeholder="bo'sh = birlamchi bilan bir xil"
+                     value={edit.followUpDurationMinutes || ''}
+                     onChange={(e) => setEdit({ ...edit, followUpDurationMinutes: e.target.value })} />
+            </div>
+          </div>
+          <div className="muted small">
+            Bemor bu shifokorda avval bo'lgan bo'lsa, navbat shu qisqa vaqt bilan hisoblanadi.
+            Masalan: birlamchi 40 daqiqa, takroriy 15 daqiqa.
           </div>
           <div className="row">
             <div className="grow"><label>Min yosh</label><input type="number" value={edit.minAge} onChange={(e) => setEdit({ ...edit, minAge: e.target.value })} /></div>

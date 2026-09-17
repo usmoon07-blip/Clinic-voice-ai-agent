@@ -10,6 +10,7 @@
  */
 const { prisma } = require('../database/connection');
 const voiceAgent = require('../core/voiceAgent');
+const notificationService = require('../services/notificationService');
 const ttsService = require('../services/ttsService');
 const settingsService = require('../services/settingsService');
 const availability = require('../services/availabilityService');
@@ -113,12 +114,20 @@ async function collect(req, res) {
     const settings = await settingsService.getSettings();
 
     if (action === 'TRANSFER') {
-      const operator = settings.operatorPhone || config.telephony.operatorPhone;
+      const emergency = session.emergency === true;
+      // Shoshilinch bo'lsa navbatchi shifokor raqamiga (bo'lmasa operatorga)
+      const operator = emergency
+        ? (settings.emergencyTransferPhone || settings.operatorPhone || config.telephony.operatorPhone)
+        : (settings.operatorPhone || config.telephony.operatorPhone);
+
       return send(res, provider().transfer({
         text: say,
         audioUrl: tts.url,
         sayLanguage: tts.sayLanguage,
         operatorNumber: operator,
+        // Javob bermasa — qo'ng'iroq jim uzilmaydi, zaxira oqimiga o'tadi
+        actionUrl: url('dial-status', { emergency: emergency ? '1' : '0' }),
+        ringSeconds: settings.operatorRingSeconds || 25,
       }));
     }
 
@@ -140,6 +149,8 @@ async function collect(req, res) {
       text: STATIC.technicalIssue.UZ,
       sayLanguage: 'ru-RU',
       operatorNumber: settings.operatorPhone || config.telephony.operatorPhone,
+      actionUrl: url('dial-status', { emergency: '0' }),
+      ringSeconds: settings.operatorRingSeconds || 25,
     }));
   }
 }
@@ -239,6 +250,57 @@ async function dtmf(req, res) {
   }
 }
 
+
+/**
+ * Operatorga uzatildi, lekin u javob bermadi.
+ *
+ * Bu eng muhim zaxira: bemor shoshilinch holatda qo'ng'iroq qilgan bo'lsa,
+ * qo'ng'iroq jim uzilib qolmasligi kerak. Shuning uchun:
+ *   1. klinika xodimlariga "OPERATOR JAVOB BERMADI" ogohlantirishi yuboriladi,
+ *   2. qayta qo'ng'iroq so'rovi shoshilinch belgisi bilan yoziladi,
+ *   3. bemorga 103 aytiladi (endi bu chinakam zarur — boshqa yo'l qolmadi).
+ */
+async function dialStatus(req, res) {
+  const info = callInfo(req);
+  const body = req.body || {};
+  const dialStatusValue = String(body.DialCallStatus || body.dialStatus || '').toLowerCase();
+  const isEmergency = String(req.query.emergency || '') === '1';
+  const settings = await settingsService.getSettings();
+  const session = voiceAgent.getSession(info.callSid);
+  const lang = session?.language || 'UZ';
+
+  // Operator javob berdi va suhbat tugadi — hech narsa qilmaymiz
+  if (dialStatusValue === 'completed' || dialStatusValue === 'answered') {
+    return send(res, provider().hangup({ text: STATIC.goodbye[lang], sayLanguage: 'ru-RU' }));
+  }
+
+  logger.warn('Operator javob bermadi', { callSid: info.callSid, dialStatusValue, isEmergency });
+
+  const phone = session?.callerPhone || info.from;
+
+  await prisma.callbackRequest.create({
+    data: {
+      phone: phone || 'unknown',
+      reason: isEmergency ? 'EMERGENCY' : (session?.transferReason || 'ESCALATED'),
+      note: isEmergency ? 'Operator javob bermadi' : null,
+      isEmergency,
+    },
+  }).catch((e) => logger.error('Qayta qo\'ng\'iroq so\'rovi yozilmadi', { message: e.message }));
+
+  if (isEmergency) {
+    notificationService
+      .alertEmergency({ phone, snippet: session?.transcript?.slice(-2).join(' '), callSid: info.callSid, transferred: false })
+      .catch(() => {});
+  }
+
+  const text = isEmergency
+    ? STATIC.emergencyNoAnswer[lang](settings.emergencyPhone)
+    : STATIC.afterHoursCallback[lang];
+  const tts = await ttsService.synthesize(text, lang);
+
+  return send(res, provider().hangup({ text, audioUrl: tts.url, sayLanguage: tts.sayLanguage }));
+}
+
 /** 4) Qo'ng'iroq tugadi — CallLog yakunlanadi. */
 async function status(req, res) {
   const info = callInfo(req);
@@ -278,4 +340,4 @@ async function simulate(req, res) {
   });
 }
 
-module.exports = { incoming, collect, dtmf, status, simulate };
+module.exports = { incoming, collect, dtmf, dialStatus, status, simulate };

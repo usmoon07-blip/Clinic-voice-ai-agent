@@ -172,7 +172,7 @@ const SERVICES = [
     descriptionUz: 'Birlamchi ko\'rik, shikoyatlarni tinglash, tekshiruvga yo\'llanma.',
     descriptionRu: 'Первичный осмотр, сбор жалоб, направление на обследование.',
     aliases: ['terapevt', 'shifokorga yozilish', 'ko\'rik', 'терапевт', 'приём терапевта'],
-    price: 120000, durationMinutes: 30, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
+    price: 120000, durationMinutes: 30, followUpDurationMinutes: 15, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
     minAge: 18,
   },
   {
@@ -188,7 +188,7 @@ const SERVICES = [
     descriptionUz: 'Bolani ko\'rikdan o\'tkazish va maslahat.',
     descriptionRu: 'Осмотр ребёнка и консультация.',
     aliases: ['pediatr', 'bolalar shifokori', 'педиатр', 'детский врач'],
-    price: 130000, durationMinutes: 30, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
+    price: 130000, durationMinutes: 30, followUpDurationMinutes: 15, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
     minAge: 0, maxAge: 18,
   },
   {
@@ -206,7 +206,7 @@ const SERVICES = [
     descriptionUz: 'Yurak-qon tomir tizimini baholash.',
     descriptionRu: 'Оценка состояния сердечно-сосудистой системы.',
     aliases: ['kardiolog', 'yurak shifokori', 'кардиолог'],
-    price: 180000, durationMinutes: 40, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
+    price: 180000, durationMinutes: 40, followUpDurationMinutes: 20, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
     minAge: 18,
   },
   {
@@ -224,7 +224,7 @@ const SERVICES = [
     descriptionUz: 'Asab tizimi bo\'yicha ko\'rik va maslahat.',
     descriptionRu: 'Осмотр и консультация по нервной системе.',
     aliases: ['nevrolog', 'невролог', 'nevropatolog'],
-    price: 160000, durationMinutes: 40, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
+    price: 160000, durationMinutes: 40, followUpDurationMinutes: 20, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
     minAge: 12,
   },
   {
@@ -232,7 +232,7 @@ const SERVICES = [
     descriptionUz: 'Profilaktik ko\'rik va maslahat.',
     descriptionRu: 'Профилактический осмотр и консультация.',
     aliases: ['ginekolog', 'гинеколог'],
-    price: 170000, durationMinutes: 40, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
+    price: 170000, durationMinutes: 40, followUpDurationMinutes: 20, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
     minAge: 15, isSensitive: true,
   },
   {
@@ -248,7 +248,7 @@ const SERVICES = [
     descriptionUz: 'Quloq, burun, tomoqni tekshirish.',
     descriptionRu: 'Осмотр уха, горла, носа.',
     aliases: ['lor', 'лор', 'квт shifokori'],
-    price: 150000, durationMinutes: 30, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
+    price: 150000, durationMinutes: 30, followUpDurationMinutes: 15, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
   },
   {
     specialty: 'ent', nameUz: 'Burun bo\'shlig\'ini yuvish', nameRu: 'Промывание носа',
@@ -263,7 +263,7 @@ const SERVICES = [
     descriptionUz: 'Teri holatini ko\'rikdan o\'tkazish.',
     descriptionRu: 'Осмотр состояния кожи.',
     aliases: ['dermatolog', 'дерматолог', 'teri shifokori'],
-    price: 150000, durationMinutes: 30, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
+    price: 150000, durationMinutes: 30, followUpDurationMinutes: 15, category: 'CONSULTATION', requiredRoomType: 'CONSULTATION',
   },
   {
     specialty: 'ultrasound', nameUz: 'Qorin bo\'shlig\'i UTT', nameRu: 'УЗИ брюшной полости',

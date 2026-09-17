@@ -10,6 +10,7 @@ jest.mock('../src/services/notificationService', () => ({
   onAppointmentCreated: jest.fn().mockResolvedValue(undefined),
   onAppointmentCancelled: jest.fn().mockResolvedValue(undefined),
   onPatientOnTheWay: jest.fn().mockResolvedValue(undefined),
+  alertEmergency: jest.fn().mockResolvedValue({ notified: 2 }),
   loadAppointment: jest.fn(),
 }));
 
@@ -30,17 +31,52 @@ const session = (extra = {}) => ({
 });
 
 describe('3-senariy: shoshilinch holat AI ga yetib bormaydi', () => {
-  test('ko\'krak og\'rig\'i + nafas qisilishi darhol operatorga uzatiladi', async () => {
+  const notificationService = require('../src/services/notificationService');
+
+  beforeEach(() => jest.clearAllMocks());
+
+  test('bemor navbatchi shifokorga ULANADI, "103 ga qo\'ng\'iroq qiling" deb qaytarilmaydi', async () => {
     const result = await voiceAgent.handleUtterance({
       callSid: `emg-${Date.now()}`,
       text: "otamning ko'kragi qattiq og'riyapti, nafasi qisilyapti",
       callerPhone: '+998900000003',
     });
+
     expect(result.action).toBe('TRANSFER');
-    expect(result.say).toMatch(/103/);
     expect(result.session.outcome).toBe('EMERGENCY');
+
+    // Asosiy javob — ulash, 103 esa faqat qo'shimcha maslahat
+    expect(result.say).toMatch(/ulayapman|соединяю/i);
+    expect(result.say).toMatch(/Telefonni qo'ymang|Не кладите трубку/i);
+    expect(result.say).toMatch(/103/);
+
     // Navbat olish boshlanmagan bo'lishi kerak
     expect(result.session.createdAppointmentId).toBeUndefined();
+  });
+
+  test('klinika xodimlariga darhol ogohlantirish yuboriladi', async () => {
+    await voiceAgent.handleUtterance({
+      callSid: `emg2-${Date.now()}`,
+      text: 'hushidan ketdi',
+      callerPhone: '+998900000033',
+    });
+
+    expect(notificationService.alertEmergency).toHaveBeenCalledTimes(1);
+    const arg = notificationService.alertEmergency.mock.calls[0][0];
+    expect(arg.phone).toBe('+998900000033');
+    expect(arg.transferred).toBe(true);
+  });
+});
+
+describe('URGENT: "bugun kerak" holatida navbat olish TO\'XTAMAYDI', () => {
+  test('kuchli og\'riq shoshilinch deb belgilanadi, lekin suhbat davom etadi', async () => {
+    const assessment = require('../src/services/triageService').assess('qattiq og\'riyapti, chidab bo\'lmayapti');
+    expect(assessment.level).toBe('URGENT');
+  });
+
+  test('oddiy so\'rov ROUTINE bo\'ladi', () => {
+    const assessment = require('../src/services/triageService').assess('terapevtga yozilmoqchiman');
+    expect(assessment.level).toBe('ROUTINE');
   });
 });
 

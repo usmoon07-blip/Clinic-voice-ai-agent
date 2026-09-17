@@ -79,6 +79,31 @@ export default function Settings({ user }) {
         <input value={settings.operatorPhone || ''} onChange={set('operatorPhone')} disabled={readOnly} />
       </div>
 
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>🚨 Shoshilinch qo'ng'iroqlar</h2>
+        <div className="alert info">
+          Bemor shoshilinch holat haqida aytsa, AI uni "103 ga qo'ng'iroq qiling" deb
+          qaytarmaydi — qo'ng'iroqni shu raqamga ULAYDI va bir vaqtning o'zida
+          xodimlarga Telegram orqali xabar yuboradi. Agar bu raqam javob bermasa,
+          qayta qo'ng'iroq so'rovi "shoshilinch" belgisi bilan yoziladi.
+        </div>
+
+        <label>Navbatchi shifokor raqami</label>
+        <input value={settings.emergencyTransferPhone || ''} onChange={set('emergencyTransferPhone')}
+               placeholder="Bo'sh bo'lsa operator raqami ishlatiladi" disabled={readOnly} />
+
+        <label>Javob kutish vaqti (soniya)</label>
+        <input type="number" value={settings.operatorRingSeconds || 25} onChange={set('operatorRingSeconds')} disabled={readOnly} />
+
+        <label>Ogohlantirish yuboriladigan Telegram ID lar (vergul bilan)</label>
+        <input value={settings.emergencyAlertChatIds || ''} onChange={set('emergencyAlertChatIds')}
+               placeholder="123456789, 987654321" disabled={readOnly} />
+        <div className="muted small">
+          Telegram ID ni bilish uchun xodim botga yozsin — ID admin panel logida ko'rinadi.
+          Shifokorlarning Telegram ID si kiritilgan bo'lsa, ularga ham avtomatik boradi.
+        </div>
+      </div>
+
       {!readOnly ? <button className="btn" onClick={save}>Saqlash</button> : null}
 
       {user.role === 'SUPERADMIN' ? (

@@ -93,13 +93,8 @@ async function assertPatientAllowed(patient) {
   }
 }
 
-/** Birlamchi qabulmi yoki takroriymi? */
-async function detectVisitType(patientId, doctorId) {
-  const previous = await prisma.appointment.count({
-    where: { patientId: Number(patientId), doctorId: Number(doctorId), status: 'COMPLETED' },
-  });
-  return previous > 0 ? 'FOLLOW_UP' : 'FIRST';
-}
+/** Birlamchi qabulmi yoki takroriymi? (yagona manba — availabilityService) */
+const detectVisitType = availability.detectVisitType;
 
 /**
  * Navbat yaratish.
@@ -111,6 +106,7 @@ async function createAppointment({
   patientId, doctorId, serviceId, startTime, source = 'TELEGRAM',
   bookedByPhone = null, patientNote = null, idempotencyKey = null,
   courseId = null, sessionNumber = null, skipPatientChecks = false,
+  durationMinutes = null, isUrgent = false, urgentReason = null,
 }) {
   if (idempotencyKey) {
     const existing = await prisma.appointment.findUnique({
@@ -129,10 +125,11 @@ async function createAppointment({
 
   const check = await availability.checkSlot({
     doctorId, serviceId, startTime: start, patientAge,
+    patientId: patient.id, durationMinutes,
   });
   if (!check.ok) throw new BookingError(check.reason, 'Bu vaqtga yozib bo\'lmadi');
 
-  const visitType = await detectVisitType(patient.id, doctorId);
+  const { visitType } = check;
   const price = visitType === 'FOLLOW_UP' && check.service.category === 'CONSULTATION'
     ? check.doctor.followUpPrice || check.service.price
     : check.service.price;
@@ -149,6 +146,9 @@ async function createAppointment({
         endTime: check.endTime,
         visitType,
         price,
+        durationMinutes: durationMinutes ? Number(durationMinutes) : null,
+        isUrgent: Boolean(isUrgent),
+        urgentReason: urgentReason || null,
         status: 'CONFIRMED',
         source,
         bookedByPhone: bookedByPhone ? phoneUtil.normalize(bookedByPhone) : null,
@@ -233,6 +233,8 @@ async function rescheduleAppointment({ appointmentId, newStartTime, actor = 'PAT
     serviceId: appointment.serviceId,
     startTime: start,
     patientAge,
+    patientId: appointment.patientId,
+    durationMinutes: appointment.durationMinutes,
     ignoreAppointmentId: appointment.id,
   });
   if (!check.ok) throw new BookingError(check.reason, 'Yangi vaqtga ko\'chirib bo\'lmadi');

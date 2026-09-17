@@ -238,10 +238,13 @@ model Service {
   // Xalq tilidagi nomlar: "UZI", "analiz", "kardiogramma" ...
   aliases       String[] @default([])
 
-  oldPrice        Int?
-  price           Int
-  category        ServiceCategory @default(CONSULTATION)
-  durationMinutes Int             @default(30)
+  oldPrice                Int?
+  price                   Int
+  category                ServiceCategory @default(CONSULTATION)
+  // Birlamchi qabul davomiyligi (daqiqa)
+  durationMinutes         Int             @default(30)
+  // Takroriy qabul odatda qisqaroq bo'ladi. null bo'lsa durationMinutes ishlatiladi.
+  followUpDurationMinutes Int?
 
   specialtyId Int
   specialty   Specialty @relation(fields: [specialtyId], references: [id])
@@ -301,6 +304,14 @@ model Appointment {
   endTime   DateTime // UTC
   visitType VisitType @default(FIRST)
   price     Int       @default(0)
+
+  // Registratura yoki triaj "shoshilinch" deb belgilagan navbat — jadvalda ajralib turadi
+  isUrgent     Boolean @default(false)
+  urgentReason String?
+
+  // Admin qo'lda uzaytirgan davomiylik (masalan murakkab holat uchun 30 -> 60 daqiqa).
+  // null bo'lsa xizmatning o'z davomiyligi ishlatiladi.
+  durationMinutes Int?
 
   status        AppointmentStatus @default(CONFIRMED)
   source        Source            @default(TELEGRAM)
@@ -514,18 +525,27 @@ model SiteSetting {
   discreetModeDefault       Boolean @default(true)
   emergencyPhone            String  @default("103")
   operatorPhone             String?
+  // Shoshilinch holatda qo'ng'iroq uzatiladigan raqam (navbatchi shifokor).
+  // Bo'sh bo'lsa operatorPhone ishlatiladi.
+  emergencyTransferPhone    String?
+  // Operator javob bermasa necha soniya kutiladi
+  operatorRingSeconds       Int     @default(25)
+  // Shoshilinch qo'ng'iroq haqida xabar boradigan Telegram ID lar (vergul bilan)
+  emergencyAlertChatIds     String?
 
   updatedAt DateTime @updatedAt
 }
 
 model CallbackRequest {
-  id        Int       @id @default(autoincrement())
-  phone     String
-  reason    String?
-  note      String?
-  isHandled Boolean   @default(false)
-  handledAt DateTime?
-  createdAt DateTime  @default(now())
+  id          Int       @id @default(autoincrement())
+  phone       String
+  reason      String?
+  note        String?
+  // Shoshilinch qo'ng'iroq operatorga yetib bormagan bo'lsa — birinchi navbatda
+  isEmergency Boolean   @default(false)
+  isHandled   Boolean   @default(false)
+  handledAt   DateTime?
+  createdAt   DateTime  @default(now())
 
   @@index([isHandled])
 }

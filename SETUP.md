@@ -45,15 +45,66 @@ node -v      # v20 yoki yuqori bo'lsin
 
 https://console.anthropic.com → API Keys → Create key → `sk-ant-...`
 
-### 1.4. Telefoniya
+### 1.4. Telefoniya — qaysi raqam kerak
 
-> ⚠️ **Muhim:** Twilio **O'zbekiston raqamlarini sotmaydi**. Variantlar:
-> - **Test uchun:** Twilio dan xalqaro raqam sotib oling va shunga qo'ng'iroq qilib sinang.
-> - **Real ish uchun:** mahalliy operatordan SIP trunk oling va **Asterisk** o'rnating,
->   so'ng `.env` da `TELEPHONY_PROVIDER=sip` qiling.
-> - Yoki Twilio **Elastic SIP Trunking** orqali mahalliy raqamni ulang.
+Ovozli assistentni sinash uchun **kiruvchi qo'ng'iroqni webhookka yo'naltira oladigan**
+raqam kerak. Oddiy SIM-karta buni qila olmaydi. Uchta yo'l bor.
 
-Twilio uchun: https://console.twilio.com → Account SID, Auth Token, Phone Numbers → Buy a number.
+#### A) Eng tez yo'l — Twilio sinov akkaunti (bugunoq ishlaydi)
+
+1. https://www.twilio.com/try-twilio — bepul ro'yxatdan o'ting.
+2. **O'z telefon raqamingizni tasdiqlang** (Verified Caller ID). Sinov akkauntida
+   raqam sotib olishdan oldin bu majburiy, va tasdiqlash faqat SMS orqali bo'ladi.
+3. **Phone Numbers → Buy a number** → AQSh raqami (odatda ~$1/oy, sinov krediti hisobidan).
+4. Raqamning **Voice → A call comes in** sozlamasiga ngrok manzilini qo'ying
+   (7-bo'limga qarang) va o'sha raqamga qo'ng'iroq qiling.
+
+Sinov akkauntining cheklovlari (bilib qo'ying, ular sinashga xalaqit qilmaydi):
+
+| Cheklov | Qiymati |
+|---|---|
+| Raqamlar soni | 1 ta (umumiy 3 tagacha) |
+| Kim qo'ng'iroq qila oladi | faqat **tasdiqlangan** raqamlardan |
+| Bitta qo'ng'iroq uzunligi | 10 daqiqa |
+| Bir vaqtda | 5 ta qo'ng'iroq |
+| Akkaunt muddati | 30 kun |
+
+> O'zingizning O'zbekiston raqamingizni tasdiqlab qo'ysangiz, shu raqamdan AQSh
+> raqamiga qo'ng'iroq qilasiz — **xalqaro tarif operatoringiz bo'yicha hisoblanadi**.
+> Buni to'lamaslik uchun B variantiga qarang.
+
+#### B) Xalqaro to'lovsiz sinash — softphone (SIP) orqali
+
+Twilio da **SIP Domain** yaratib, kompyuter yoki telefonga bepul softphone
+(Zoiper, MicroSIP, Linphone) o'rnatasiz va qo'ng'iroqni **internet orqali** qilasiz —
+mobil operator tarifi umuman ishlatilmaydi.
+
+1. Twilio Console → **Voice → Manage → SIP Domains** → yangi domen
+   (masalan `clinic-test.sip.twilio.com`).
+2. **Credential Lists** → login/parol yarating va domenga biriktiring.
+3. Zoiper ga kiriting: login `ism@clinic-test.sip.twilio.com`, parol — o'sha.
+4. Softphone dan o'zingizning Twilio raqamingizni tering.
+
+#### C) Real ish uchun — O'zbekiston raqami
+
+> ⚠️ **Halol ogohlantirish:** Twilio ning O'zbekiston raqamlari inventari yo'q
+> (ular UZ ga **qo'ng'iroq qilish** tarifini ko'rsatadi, bu boshqa narsa).
+> Console da qidirib ko'ring — chiqmasa, quyidagilardan birini tanlang:
+>
+> - **Mahalliy operator SIP trunk** (Uzbektelecom, korporativ tariflar) + Asterisk.
+>   Eng ishonchli va qonuniy yo'l, klinikaning mavjud raqami saqlanib qoladi.
+> - **Xalqaro provayderlar** (Telnyx, AVOXI, Global Call Forwarding va h.k.)
+>   O'zbekiston raqamlarini taklif qilishini e'lon qiladi — lekin ko'pincha
+>   hujjat/KYC (mahalliy manzil, tashkilot guvohnomasi) talab qilinadi.
+>   Buyurtma berishdan oldin **SIP/webhook ga yo'naltirish mumkinmi** deb aniq so'rang:
+>   oddiy "call forwarding" bizga yaramaydi.
+> - **GSM-gateway** (masalan GoIP) + klinikaning oddiy SIM kartasi — arzon,
+>   lekin sifati va barqarorligi pastroq.
+>
+> Qaysi birini tanlasangiz ham, kod tayyor: `.env` da `TELEPHONY_PROVIDER=sip`
+> qilib, ARI ma'lumotlarini kiritasiz.
+
+Twilio uchun kalitlar: https://console.twilio.com → Account SID, Auth Token.
 
 ### 1.5. TTS (ovoz)
 
@@ -331,3 +382,57 @@ ngrok http 5173
 | O'zbekcha ovoz g'aliz | Twilio o'zbek tilini bilmaydi. `TTS_PROVIDER=elevenlabs` qiling. |
 | Slot ko'rinyapti, lekin band qilib bo'lmayapti | Boshqa kanal (telefon/ilova) o'sha vaqtni hozirgina oldi. Bu to'g'ri xatti-harakat — ro'yxat yangilanadi. |
 | Eslatmalar kelmayapti | `ENABLE_JOBS=true` ekanini va bemorda `telegramId` yoki SMS provayderi borligini tekshiring. |
+
+---
+
+## 13. Qabul davomiyligi qanday belgilanadi
+
+Har bir bemorga bir xil vaqt qo'yilmaydi. Davomiylik **xizmatdan** olinadi:
+
+| Xizmat | Birlamchi | Takroriy |
+|---|---|---|
+| Terapevt konsultatsiyasi | 30 daq | 15 daq |
+| Kardiolog konsultatsiyasi | 40 daq | 20 daq |
+| EKG | 15 daq | — |
+| Qorin bo'shlig'i UTT | 25 daq | — |
+| Qon tahlili | 15 daq | — |
+
+Bu qiymatlar **admin panel → Xizmatlar** bo'limida o'zgartiriladi:
+"Birlamchi qabul (daq)" va "Takroriy qabul (daq)".
+
+**Takroriy qabul qanday aniqlanadi:** bemor shu shifokorda avval bo'lgan va o'sha navbat
+"Yakunlangan" deb belgilangan bo'lsa, tizim keyingi safar avtomatik qisqa vaqtni oladi.
+Bemor Mini Appda yoki telefonda vaqt tanlaganda, unga **aynan shu davomiylikka mos**
+slotlar ko'rsatiladi.
+
+**Bitta navbatni uzaytirish:** registratura "Qo'lda yozish" oynasida
+"Davomiyligini uzaytirish" maydoniga masalan 60 yozsa, o'sha navbat 60 daqiqa bo'ladi
+(murakkab holat uchun). Agar uzaytirilgan vaqt ish kuniga sig'masa yoki keyingi bemor
+bilan to'qnashsa, tizim rad etadi.
+
+**Slotlar qanday joylashadi:** slot qadami = xizmat davomiyligi + bufer
+(sozlamalardagi "Qabullar orasidagi bufer", default 5 daqiqa). Ya'ni 30 daqiqalik
+xizmatda slotlar 09:00, 09:35, 10:10 bo'lib ketadi — shifokorga hujjat to'ldirish va
+kabinetni tayyorlash uchun vaqt qoladi.
+
+---
+
+## 14. Shoshilinch holat qanday hal qilinadi
+
+Bemor allaqachon **klinikaga** qo'ng'iroq qilgan — uni "103 ga qo'ng'iroq qiling" deb
+qaytarib yuborish yordam emas. Shuning uchun tizim uch darajali ishlaydi:
+
+| Daraja | Nima bo'ladi |
+|---|---|
+| **CRITICAL** (ko'krak og'rig'i, nafas qisilishi, hushdan ketish, qon ketishi) | AI navbat olishni to'xtatadi, "telefonni qo'ymang" deydi va qo'ng'iroqni **navbatchi shifokorga ulaydi**. Bir vaqtning o'zida xodimlarga Telegram/SMS ogohlantirish ketadi. 103 faqat qo'shimcha maslahat sifatida aytiladi. |
+| **URGENT** (kuchli og'riq, 38–39.4 harorat, "bugun kerak") | Navbat olish **to'xtamaydi** — AI bugungi eng yaqin vaqtni taklif qiladi, navbat "⚡ Shoshilinch" deb belgilanadi. Bugun joy bo'lmasa operatorga uzatadi. |
+| **ROUTINE** | Oddiy navbat olish. |
+
+**Agar navbatchi javob bermasa:** qo'ng'iroq jim uzilmaydi. Tizim
+(a) xodimlarga "OPERATOR JAVOB BERMADI" ogohlantirishini yuboradi,
+(b) qayta qo'ng'iroq so'rovini 🚨 belgisi bilan yozib qo'yadi (admin panel →
+Qo'ng'iroqlar), (c) endi bemorga 103 ni aytadi — bu paytda bu chinakam zarur.
+
+**Sozlash:** admin panel → Sozlamalar → "🚨 Shoshilinch qo'ng'iroqlar":
+navbatchi shifokor raqami, javob kutish vaqti (soniya) va ogohlantirish yuboriladigan
+Telegram ID lar.

@@ -6,6 +6,7 @@ jest.mock('../src/services/notificationService', () => ({
   onAppointmentCreated: jest.fn().mockResolvedValue(undefined),
   onAppointmentCancelled: jest.fn().mockResolvedValue(undefined),
   onPatientOnTheWay: jest.fn().mockResolvedValue(undefined),
+  alertEmergency: jest.fn().mockResolvedValue({ notified: 2 }),
   loadAppointment: jest.fn(),
 }));
 

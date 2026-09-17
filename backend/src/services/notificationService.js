@@ -145,8 +145,66 @@ async function onPatientOnTheWay(appointmentId) {
   );
 }
 
+
+/**
+ * SHOSHILINCH QO'NG'IROQ OGOHLANTIRISHI.
+ *
+ * Bemorni "103 ga qo'ng'iroq qiling" deb qaytarish yetarli emas — u allaqachon
+ * KLINIKAGA qo'ng'iroq qilgan. Shuning uchun qo'ng'iroq navbatchiga ulanayotgan
+ * paytda klinika xodimlariga darhol xabar ketadi: kim, qaysi raqamdan, nima degani.
+ * Shunda operator javob bermay qolsa ham, klinika bilib turadi va o'zi qayta bog'lanadi.
+ */
+async function alertEmergency({ phone, snippet, callSid, transferred = true }) {
+  const settings = await settingsService.getSettings();
+
+  const header = transferred
+    ? '🚨 SHOSHILINCH QO\'NG\'IROQ — navbatchiga ulanmoqda'
+    : '🚨 SHOSHILINCH QO\'NG\'IROQ — OPERATOR JAVOB BERMADI';
+
+  const text = [
+    header,
+    `📞 Raqam: ${phone || 'noma\'lum'}`,
+    snippet ? `💬 Bemor: "${String(snippet).slice(0, 200)}"` : null,
+    callSid ? `🆔 ${callSid}` : null,
+    '',
+    transferred
+      ? 'Qo\'ng\'iroq hozir uzatilmoqda. Javob bering yoki bemorga qayta qo\'ng\'iroq qiling.'
+      : '❗️ DARHOL BEMORGA QAYTA QO\'NG\'IROQ QILING.',
+  ].filter(Boolean).join('\n');
+
+  const targets = new Set();
+
+  // Sozlamalarda ko'rsatilgan chat ID lar
+  for (const id of String(settings.emergencyAlertChatIds || '').split(',').map((x) => x.trim()).filter(Boolean)) {
+    targets.add(id);
+  }
+
+  // Barcha faol shifokorlar va panel foydalanuvchilari
+  try {
+    const doctors = await prisma.doctor.findMany({
+      where: { isActive: true, telegramId: { not: null } },
+      select: { telegramId: true },
+    });
+    doctors.forEach((d) => targets.add(d.telegramId));
+  } catch (e) {
+    logger.error('Shifokorlar ro\'yxatini olib bo\'lmadi', { message: e.message });
+  }
+
+  await Promise.all([...targets].map((chatId) => sendTelegram(chatId, text)));
+
+  // Telegram bo'lmasa ham xabar yetib borishi uchun — operatorga SMS
+  const smsTarget = settings.emergencyTransferPhone || settings.operatorPhone;
+  if (smsTarget) {
+    await smsService.send(smsTarget, `SHOSHILINCH: ${phone}. ${transferred ? 'Qongiroq uzatildi.' : 'OPERATOR JAVOB BERMADI - qayta qongiroq qiling!'}`);
+  }
+
+  logger.warn('Shoshilinch ogohlantirish yuborildi', { targets: targets.size, transferred });
+  return { notified: targets.size };
+}
+
 module.exports = {
   registerBot,
+  alertEmergency,
   sendTelegram,
   notifyPatient,
   notifyDoctor,

@@ -46,9 +46,18 @@ ${common}
 
 ЕСЛИ СЛЫШИШЬ ПРИЗНАКИ НЕОТЛОЖНОГО СОСТОЯНИЯ (боль в груди, одышка, потеря
 сознания, сильное кровотечение, паралич, судороги, угроза жизни):
-Немедленно прекрати запись и скажи:
-«Это может требовать неотложной помощи. Пожалуйста, немедленно позвоните ${emergencyPhone}.
-Я соединю вас с оператором.» — и вызови transfer_to_operator.
+Пациент УЖЕ позвонил нам — не отправляй его звонить в ${emergencyPhone}. Вместо этого:
+1. Немедленно прекрати запись.
+2. Скажи: «Понимаю, это может быть серьёзно. Не кладите трубку — я прямо сейчас
+   соединяю вас с дежурным врачом.»
+3. Вызови transfer_to_operator с причиной EMERGENCY.
+${emergencyPhone} упоминай только как ДОПОЛНИТЕЛЬНУЮ меру («если станет хуже — звоните
+также в ${emergencyPhone}»), а не как основной ответ.
+
+ЕСЛИ ПАЦИЕНТ ГОВОРИТ «СРОЧНО, СЕГОДНЯ» или о сильной боли/высокой температуре
+(но без угрозы жизни):
+Не прекращай запись. Вызови get_available_slots на СЕГОДНЯ и предложи ближайшее время.
+Если на сегодня мест нет — вызови transfer_to_operator (регистратура может принять вне очереди).
 
 ПОРЯДОК ЗАПИСИ:
 1. Для кого запись? (для себя или для ребёнка — спроси возраст)
@@ -94,9 +103,20 @@ Sababini tushuntirma, tashxis taxmin qilma.
 
 SHOSHILINCH BELGI ESHITSANG (ko'krak og'rig'i, nafas qisilishi, hushdan ketish,
 kuchli qon ketish, falaj, talvasa, jon saqlash xavfi):
-Darhol navbat olishni to'xtat va ayt:
-"Bu holat shoshilinch yordam talab qilishi mumkin. Iltimos, hoziroq ${emergencyPhone} ga
-qo'ng'iroq qiling. Men sizni operatorga ulayman." — va transfer_to_operator ni chaqir.
+Bemor ALLAQACHON bizga qo'ng'iroq qilgan — uni "${emergencyPhone} ga qo'ng'iroq qiling"
+deb QAYTARIB YUBORMA. Aksincha:
+1. Darhol navbat olishni to'xtat.
+2. Ayt: "Tushundim, bu jiddiy bo'lishi mumkin. Telefonni qo'ymang — men sizni hoziroq
+   navbatchi shifokorimizga ulayapman."
+3. transfer_to_operator ni EMERGENCY sababi bilan chaqir.
+${emergencyPhone} ni faqat QO'SHIMCHA maslahat sifatida ayt ("holat og'irlashsa
+${emergencyPhone} ga ham qo'ng'iroq qiling"), asosiy javob sifatida emas.
+
+BEMOR "BUGUN KERAK" DESA yoki kuchli og'riq/yuqori harorat haqida aytsa (lekin hayot
+uchun xavf bo'lmasa):
+Navbat olishni to'xtatma. get_available_slots ni BUGUNGI sana bilan chaqir va eng yaqin
+vaqtni taklif qil. Bugun joy bo'lmasa — transfer_to_operator ni chaqir
+(registratura navbatsiz qabul qila oladi).
 
 NAVBAT OLISH TARTIBI:
 1. Kim uchun? (o'zingizgami yoki farzandingizgami — yoshini so'ra)
@@ -119,9 +139,27 @@ const STATIC = {
     UZ: 'Qo\'ng\'iroq sifat nazorati uchun yozib olinadi.',
     RU: 'Звонок записывается для контроля качества.',
   },
+  // MUHIM: bemor allaqachon KLINIKAGA qo'ng'iroq qilgan. Uni "103 ga qo'ng'iroq
+  // qiling" deb qaytarib yubormaymiz — birinchi navbatda navbatchi shifokorga
+  // ULAYMIZ, 103 esa qo'shimcha maslahat sifatida aytiladi.
   emergency: {
-    UZ: (phone) => `Bu holat shoshilinch yordam talab qilishi mumkin. Iltimos, hoziroq ${phone} raqamiga qo'ng'iroq qiling. Men sizni klinika operatoriga ulayman.`,
-    RU: (phone) => `Это может требовать неотложной помощи. Пожалуйста, немедленно позвоните ${phone}. Я соединю вас с оператором клиники.`,
+    UZ: () => 'Tushundim, bu jiddiy bo\'lishi mumkin. Telefonni qo\'ymang — men sizni hoziroq navbatchi shifokorimizga ulayapman.',
+    RU: () => 'Понимаю, это может быть серьёзно. Не кладите трубку — я прямо сейчас соединяю вас с дежурным врачом.',
+  },
+  // Shifokor javob bermasa aytiladigan matn
+  emergencyNoAnswer: {
+    UZ: (phone) => `Kechirasiz, shifokorimiz hozir band. Iltimos, zudlik bilan ${phone} ga qo'ng'iroq qiling — men klinika xodimlarini ogohlantirdim, ular ham sizga qayta qo'ng'iroq qiladi.`,
+    RU: (phone) => `Извините, врач сейчас занят. Пожалуйста, срочно позвоните ${phone} — я уже уведомил сотрудников клиники, они перезвонят вам.`,
+  },
+  // Shoshilinch holatda ulanish paytida aytiladigan qo'shimcha eslatma
+  emergencyAdvice: {
+    UZ: (phone) => `Agar holat og'irlashsa yoki men uzib qo'ysam, darhol ${phone} ga qo'ng'iroq qiling.`,
+    RU: (phone) => `Если состояние ухудшится или связь прервётся — сразу звоните ${phone}.`,
+  },
+  // Bugun ko'rilishi kerak bo'lgan holat
+  urgentAcknowledged: {
+    UZ: 'Tushundim, buni bugunga qo\'yamiz.',
+    RU: 'Понял, постараемся записать вас на сегодня.',
   },
   transferring: {
     UZ: 'Sizni operatorga ulayapman, bir soniya kuting.',

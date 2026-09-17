@@ -12,6 +12,7 @@ const router = express.Router();
 router.post('/incoming', voiceLimiter, validateTelephonySignature, asyncHandler(ctrl.incoming));
 router.post('/collect', validateTelephonySignature, asyncHandler(ctrl.collect));
 router.post('/dtmf', validateTelephonySignature, asyncHandler(ctrl.dtmf));
+router.post('/dial-status', validateTelephonySignature, asyncHandler(ctrl.dialStatus));
 router.post('/status', validateTelephonySignature, asyncHandler(ctrl.status));
 
 // Faqat dev rejimda: telefonsiz matnli test

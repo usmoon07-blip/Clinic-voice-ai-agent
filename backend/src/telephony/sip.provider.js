@@ -50,11 +50,17 @@ class SipProvider extends TelephonyProvider {
     });
   }
 
-  transfer({ text, audioUrl, operatorNumber }) {
+  transfer({ text, audioUrl, operatorNumber, actionUrl, ringSeconds = 25 }) {
     return JSON.stringify({
       commands: [
         audioUrl ? { type: 'play', url: audioUrl } : { type: 'tts', text },
-        { type: 'transfer', extension: operatorNumber || config.telephony.sip.operatorExtension },
+        {
+          type: 'transfer',
+          extension: operatorNumber || config.telephony.sip.operatorExtension,
+          ringSeconds,
+          // Javob bermasa shu manzilga qaytiladi
+          onNoAnswerUrl: actionUrl || null,
+        },
       ],
     });
   }

@@ -31,12 +31,19 @@ export default function Calls() {
       {callbacks.length ? (
         <>
           <h2>📲 Qayta qo'ng'iroq so'rovlari</h2>
+          <div className="alert warn">
+            Bu ro'yxatdagi bemorlar operatorga ulana olmagan. 🚨 belgilangani —
+            shoshilinch holat: birinchi navbatda shularga qo'ng'iroq qiling.
+          </div>
           <table>
             <thead><tr><th>Telefon</th><th>Sabab</th><th>Vaqt</th><th>Amal</th></tr></thead>
             <tbody>
               {callbacks.map((c) => (
-                <tr key={c.id} className={c.note === 'SHOSHILINCH' ? 'danger-row' : ''}>
-                  <td><b>{c.phone}</b></td>
+                <tr key={c.id} className={c.isEmergency ? 'danger-row' : ''}>
+                  <td>
+                    <b>{c.phone}</b>
+                    {c.isEmergency ? <div><span className="badge red">🚨 SHOSHILINCH</span></div> : null}
+                  </td>
                   <td className="small">{c.reason}{c.note ? ` · ${c.note}` : ''}</td>
                   <td className="small">{dt(c.createdAt)}</td>
                   <td><button className="btn secondary" onClick={() => handleCallback(c.id)}>Bajarildi</button></td>

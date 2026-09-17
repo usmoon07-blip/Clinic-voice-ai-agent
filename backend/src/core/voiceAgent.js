@@ -16,6 +16,7 @@ const aiClient = require('./aiClient');
 const voiceTools = require('../services/voiceTools');
 const triage = require('../services/triageService');
 const settingsService = require('../services/settingsService');
+const notificationService = require('../services/notificationService');
 const identityService = require('../services/identityService');
 const availability = require('../services/availabilityService');
 const { buildSystemPrompt, STATIC } = require('../config/voicePrompt');
@@ -121,6 +122,13 @@ async function systemPromptFor(session) {
   } else {
     lines.push('Bu raqam bazada yo\'q — yangi bemor. Ismini so\'rab, create_patient ni chaqir.');
   }
+  if (session.urgent) {
+    lines.push(
+      'DIQQAT: bemor holatini shoshilinch deb bildirdi (kuchli og\'riq/harorat/"bugun kerak").'
+      + ' get_available_slots ni BUGUNGI sana bilan chaqir va eng yaqin vaqtni taklif qil.'
+      + ' Bugun joy bo\'lmasa, transfer_to_operator ni chaqir.',
+    );
+  }
   if (lines.length) prompt += `\n\nKONTEKST:\n${lines.join('\n')}`;
   return prompt;
 }
@@ -155,15 +163,32 @@ async function handleUtterance({ callSid, text, callerPhone }) {
 
   const settings = await settingsService.getSettings();
 
-  // ── 1-qatlam: shoshilinch holat ──
-  const emergency = triage.detectEmergency(text);
-  if (emergency.isEmergency) {
+  // ── 1-qatlam: shoshilinchlikni baholash ──
+  const triageResult = triage.assess(text);
+
+  if (triageResult.level === 'CRITICAL') {
     session.emergency = true;
     session.outcome = 'EMERGENCY';
-    const say = STATIC.emergency[session.language](settings.emergencyPhone);
+    session.transferReason = 'EMERGENCY';
+
+    // Bemor allaqachon BIZGA qo'ng'iroq qilgan — uni qaytarib yubormaymiz,
+    // navbatchiga ulaymiz. 103 faqat qo'shimcha maslahat sifatida aytiladi.
+    const say = `${STATIC.emergency[session.language]()} ${STATIC.emergencyAdvice[session.language](settings.emergencyPhone)}`;
     pushTranscript(session, 'AI', say);
-    logger.warn('Shoshilinch holat aniqlandi', { callSid, matched: emergency.matched });
+    logger.warn('Shoshilinch holat aniqlandi', { callSid, matched: triageResult.matched });
+
+    // Klinika xodimlariga darhol xabar — operator javob bermasa ham bilib tursin
+    notificationService
+      .alertEmergency({ phone: session.callerPhone, snippet: text, callSid, transferred: true })
+      .catch((e) => logger.error('Shoshilinch ogohlantirish yuborilmadi', { message: e.message }));
+
     return { say, action: 'TRANSFER', session };
+  }
+
+  // Bugun ko'rilishi kerak — navbat olish TO'XTATILMAYDI, faqat ustuvorlik beriladi
+  if (triageResult.level === 'URGENT') {
+    session.urgent = true;
+    session.urgentReason = triageResult.matched.join(', ');
   }
 
   // ── 2-qatlam: operator so'rovi ──
@@ -245,7 +270,19 @@ async function handleUtterance({ callSid, text, callerPhone }) {
     }
   }
 
-  if (session.createdAppointmentId) session.outcome = 'BOOKED';
+  if (session.createdAppointmentId) {
+    session.outcome = 'BOOKED';
+    // Shoshilinch deb belgilangan bo'lsa, registratura jadvalda ko'rib tursin
+    if (session.urgent && !session.urgentMarked) {
+      session.urgentMarked = true;
+      prisma.appointment
+        .update({
+          where: { id: session.createdAppointmentId },
+          data: { isUrgent: true, urgentReason: session.urgentReason || null },
+        })
+        .catch((e) => logger.error('Shoshilinch bayrog\'i qo\'yilmadi', { message: e.message }));
+    }
+  }
 
   const latency = Date.now() - started;
   session.latencies.push(latency);
