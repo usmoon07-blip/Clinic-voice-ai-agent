@@ -7,7 +7,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Ish vaqtida: pooled ulanish (Neon da "-pooler" bo'lgan manzil)
+  url       = env("DATABASE_URL")
+  // Migratsiya uchun: to'g'ridan-to'g'ri ulanish (manzildan "-pooler" olib tashlanadi).
+  // Neon pooler DDL (jadval yaratish) uchun mos emas.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ───────────────────────── ENUMS ─────────────────────────

@@ -118,7 +118,24 @@ Twilio uchun kalitlar: https://console.twilio.com → Account SID, Auth Token.
 
 ---
 
-## 2. Backend
+## 2. Eng tez yo'l — bitta buyruq
+
+Agar qo'lda sozlashni xohlamasangiz:
+
+```bash
+chmod +x setup.sh
+./setup.sh
+```
+
+Birinchi ishga tushirishda skript `backend/.env` ni yaratadi va to'ldirishni so'raydi.
+To'ldirib, skriptni qayta ishga tushirsangiz — paketlarni o'rnatadi, bazani
+tayyorlaydi va uchala qismni birdan ishga tushiradi.
+
+Qolgan bo'limlar qo'lda sozlash uchun.
+
+---
+
+## 2b. Backend (qo'lda)
 
 ```bash
 cd backend
@@ -129,7 +146,8 @@ cp .env.example .env
 Endi `.env` faylini oching va to'ldiring. Eng kamida:
 
 ```
-DATABASE_URL=...           # Neon dan olingan
+DATABASE_URL=...           # Neon → Connect → Pooled connection ("-pooler" bor)
+DIRECT_DATABASE_URL=...    # xuddi shu manzil, lekin "-pooler" siz
 JWT_SECRET=...             # uzun tasodifiy matn
 SUPERADMIN_LOGIN=admin
 SUPERADMIN_PASSWORD=...    # o'zingiz o'ylab toping
@@ -139,6 +157,11 @@ CLINIC_NAME=Shifo klinikasi
 CLINIC_PHONE=+998712000000
 CLINIC_ADDRESS=Toshkent sh., ...
 ```
+
+> **Nega ikkita baza manzili?** Neon ning "pooled" ulanishi orqali jadval yaratib
+> bo'lmaydi. Shuning uchun kundalik ishga `DATABASE_URL` (pooled), migratsiyaga esa
+> `DIRECT_DATABASE_URL` (pooler siz) ishlatiladi. Ikkinchisini qo'lda yozmasangiz ham
+> bo'ladi — `./setup.sh` uni birinchisidan avtomatik yasaydi.
 
 Bazani yaratish va boshlang'ich ma'lumotlarni yuklash:
 
