@@ -38,12 +38,80 @@ const EMERGENCY_PATTERNS = [
 // Bolalarda yuqori harorat — alohida tekshiriladi
 const HIGH_FEVER_PATTERNS = [/(\d{2}(?:[.,]\d)?)\s*(?:daraja|градус|°)/i];
 
+/**
+ * Matnni solishtirishga tayyorlash: apostroflar olib tashlanadi
+ * ("ko'krak" -> "kokrak"), chunki STT ularni turlicha yozadi.
+ */
 function normalize(text) {
   return String(text || '')
     .toLowerCase()
-    .replace(/[''`]/g, "'")
+    .replace(/[\u2018\u2019\u02BB\u02BC'`\u00B4]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Juftlik qoidalari: bitta iborada tana a'zosi VA og'riq/holat so'zi
+ * birga uchrasa — shoshilinch. Bu "ko'kragi QATTIQ og'riyapti" kabi
+ * orasiga so'z qo'shilgan gaplarni ham tutadi.
+ */
+const EMERGENCY_COMBINATIONS = [
+  {
+    name: 'chest',
+    parts: ['kokrak', 'kokrag', 'grud', 'груд', 'yurak', 'сердц', 'serdc'],
+    with: ['ogri', 'ogrи', 'sanch', 'bol', 'бол', 'davit', 'давит', 'жж', 'tutdi', 'xuruj', 'прихват', 'siqil'],
+  },
+  {
+    name: 'breathing',
+    parts: ['nafas', 'дыш', 'дых'],
+    with: ['qis', 'ololmay', 'ola olmay', 'yetmay', 'не', 'тяжел', 'sekin'],
+  },
+  {
+    name: 'consciousness',
+    parts: ['hush', 'ong', 'созна'],
+    with: ['ket', 'yoqot', 'yo`qot', 'yoq', 'poter', 'потер', 'без'],
+  },
+  {
+    name: 'bleeding',
+    // "qon" juda keng tarqalgan so'z ("qon tahlili"), shuning uchun faqat
+    // qon KETAYOTGANINI bildiruvchi shakllar hisobga olinadi.
+    parts: ['qon', 'кров'],
+    with: ['ketyap', 'ketayap', 'ketvot', 'ketmoqda', 'oqyap', 'oqayap', 'oqmoqda',
+      'toxtamay', 'toxtatolmay', 'кровотеч', 'кровит', 'идет кров', 'хлещ'],
+    // Laboratoriya konteksti bo'lsa — bu shoshilinch emas
+    unless: ['tahlil', 'analiz', 'анализ', 'topshir', 'сдать', 'sdat', 'laborator'],
+  },
+];
+
+/** Ikkita so'z guruhi matnda bir-biridan PROXIMITY belgidan yaqin turibdimi? */
+const PROXIMITY = 25;
+
+function indexesOf(text, needle) {
+  const out = [];
+  let from = 0;
+  for (;;) {
+    const i = text.indexOf(needle, from);
+    if (i === -1) return out;
+    out.push(i);
+    from = i + 1;
+  }
+}
+
+function nearby(text, groupA, groupB) {
+  for (const a of groupA) {
+    const aWord = normalize(a);
+    if (!aWord) continue;
+    for (const ai of indexesOf(text, aWord)) {
+      for (const b of groupB) {
+        const bWord = normalize(b);
+        if (!bWord) continue;
+        for (const bi of indexesOf(text, bWord)) {
+          if (Math.abs(bi - ai) <= PROXIMITY) return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -55,6 +123,13 @@ function detectEmergency(text) {
   if (!t) return { isEmergency: false, matched: [] };
 
   const matched = EMERGENCY_PATTERNS.filter((p) => t.includes(normalize(p)));
+
+  // Juftlik qoidalari — so'zlar bir-biriga YAQIN turishi shart.
+  // Aks holda "qon tahlili ... ketaman" kabi oddiy gap shoshilinch deb belgilanardi.
+  for (const combo of EMERGENCY_COMBINATIONS) {
+    const excluded = (combo.unless || []).some((w) => t.includes(normalize(w)));
+    if (!excluded && nearby(t, combo.parts, combo.with)) matched.push(`combo:${combo.name}`);
+  }
 
   // 39.5+ daraja harorat + bola -> shoshilinch
   for (const re of HIGH_FEVER_PATTERNS) {
@@ -142,5 +217,6 @@ module.exports = {
   isMedicalAdviceRequest,
   wantsOperator,
   EMERGENCY_PATTERNS,
+  EMERGENCY_COMBINATIONS,
   normalize,
 };
