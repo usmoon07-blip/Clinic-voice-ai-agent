@@ -173,3 +173,66 @@ export const localized = (obj, field, lang) => (lang === 'RU' ? obj?.[`${field}R
 
 export const money = (value, lang) =>
   `${Number(value || 0).toLocaleString('ru-RU')} ${lang === 'RU' ? 'сум' : "so'm"}`;
+
+/* ── Sana/vaqt formatlash ──────────────────────────────────────────
+   Klinika Toshkentda — vaqt har doim Asia/Tashkent bo'yicha ko'rsatiladi
+   (bemor boshqa vaqt zonasida bo'lsa ham to'g'ri ko'rinadi).
+   uz-UZ lokali oy nomlarini "M09" ko'rinishida beradi, shuning uchun
+   o'zbekcha oylar qo'lda yoziladi.                                     */
+
+export const TZ = 'Asia/Tashkent';
+
+const MONTHS_UZ = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+  'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr'];
+const WEEKDAYS_UZ = ['yakshanba', 'dushanba', 'seshanba', 'chorshanba',
+  'payshanba', 'juma', 'shanba'];
+
+const partsInTz = (value) => {
+  const d = new Date(value);
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ, year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', weekday: 'short', hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(d).map((p) => [p.type, p.value]));
+  return {
+    day: Number(parts.day),
+    month: Number(parts.month),
+    year: Number(parts.year),
+    hour: parts.hour,
+    minute: parts.minute,
+    weekdayIndex: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(parts.weekday),
+  };
+};
+
+/** "21-sentyabr" / "21 сентября" */
+export function formatDate(value, lang, { withWeekday = false } = {}) {
+  const p = partsInTz(value);
+  if (lang === 'RU') {
+    const base = new Intl.DateTimeFormat('ru-RU', {
+      timeZone: TZ, day: 'numeric', month: 'long', ...(withWeekday ? { weekday: 'long' } : {}),
+    }).format(new Date(value));
+    return base;
+  }
+  const base = `${p.day}-${MONTHS_UZ[p.month - 1]}`;
+  return withWeekday ? `${base}, ${WEEKDAYS_UZ[p.weekdayIndex]}` : base;
+}
+
+/** "09:35" (Toshkent vaqti) */
+export function formatTime(value) {
+  const p = partsInTz(value);
+  return `${p.hour}:${p.minute}`;
+}
+
+/** "21-sentyabr, 09:35" */
+export function formatDateTime(value, lang) {
+  return `${formatDate(value, lang)}, ${formatTime(value)}`;
+}
+
+/** Qisqa sana tugmalari uchun: "21-sen" / "21 сен" */
+export function formatDateShort(value, lang) {
+  const p = partsInTz(value);
+  if (lang === 'RU') {
+    return new Intl.DateTimeFormat('ru-RU', { timeZone: TZ, day: 'numeric', month: 'short' }).format(new Date(value));
+  }
+  return `${p.day}-${MONTHS_UZ[p.month - 1].slice(0, 3)}`;
+}

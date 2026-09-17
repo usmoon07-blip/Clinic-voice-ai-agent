@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, unwrap, telegram } from '../lib/api.js';
-import { useLang, localized, money } from '../lib/i18n.js';
+import { useLang, localized, money, formatDateTime } from '../lib/i18n.js';
 
 const STATUS_CLASS = {
   CONFIRMED: 'green', CHECKED_IN: 'green', COMPLETED: '',
@@ -58,10 +58,7 @@ export default function Appointments() {
     <div className="card">
       <div className="between">
         <div className="grow">
-          <h3>
-            {new Date(a.startTime).toLocaleString(lang === 'RU' ? 'ru-RU' : 'uz-UZ',
-              { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
-          </h3>
+          <h3>{formatDateTime(a.startTime, lang)}</h3>
           <p className="muted small">{a.doctor.firstName} {a.doctor.lastName} · {localized(a.doctor.specialty, 'name', lang)}</p>
           <p className="muted small">{localized(a.service, 'name', lang)}</p>
           {a.room ? <p className="muted small">🚪 {a.room.name}</p> : null}

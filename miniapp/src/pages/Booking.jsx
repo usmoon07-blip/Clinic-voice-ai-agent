@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api, unwrap, telegram } from '../lib/api.js';
-import { useLang, localized, money } from '../lib/i18n.js';
+import { useLang, localized, money, formatDate, formatDateShort, formatDateTime } from '../lib/i18n.js';
 import ProfileForm from '../components/ProfileForm.jsx';
 
 const STEPS = ['who', 'service', 'doctor', 'date', 'time', 'confirm'];
@@ -62,6 +62,18 @@ export default function Booking() {
     api.get('/availability/slots', { params: { serviceId, doctorId: doctorId || undefined, date, patientId: forPatientId || undefined } })
       .then(unwrap).then((d) => setSlots(d.slots)).catch(() => setSlots([])).finally(() => setBusy(false));
   }, [serviceId, doctorId, date, forPatientId]);
+
+  // "Farqi yo'q" tanlanganda bir xil vaqt bir necha shifokordan kelishi mumkin —
+  // bemorga har bir vaqt bir martadan ko'rsatiladi.
+  const visibleSlots = useMemo(() => {
+    if (doctorId) return slots;
+    const seen = new Set();
+    return slots.filter((s) => {
+      if (seen.has(s.time)) return false;
+      seen.add(s.time);
+      return true;
+    });
+  }, [slots, doctorId]);
 
   const service = useMemo(() => services.find((s) => s.id === serviceId), [services, serviceId]);
   const doctor = useMemo(() => doctors.find((d) => d.id === (slot?.doctorId || doctorId)), [doctors, doctorId, slot]);
@@ -152,7 +164,7 @@ export default function Booking() {
         <div className="center" style={{ fontSize: 56, marginTop: 24 }}>✅</div>
         <h1 className="center">{lang === 'RU' ? 'Вы записаны!' : 'Yozildingiz!'}</h1>
         <div className="card tinted mt" style={{ margin: '16px 0' }}>
-          <h3>{start.toLocaleString(lang === 'RU' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</h3>
+          <h3>{formatDateTime(start, lang)}</h3>
           <p className="muted">{doctor ? `${doctor.firstName} ${doctor.lastName}` : ''}</p>
           <p className="muted">{service ? localized(service, 'name', lang) : ''}</p>
         </div>
@@ -294,7 +306,7 @@ export default function Booking() {
               const dt = new Date(`${d}T00:00:00`);
               return (
                 <button key={d} className={`chip ${date === d ? 'active' : ''}`} onClick={() => { setDate(d); go(4); }}>
-                  {dt.toLocaleDateString(lang === 'RU' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'short' })}
+                  {formatDateShort(dt, lang)}
                 </button>
               );
             })}
@@ -316,14 +328,14 @@ export default function Booking() {
           <h2>{t.chooseTime}</h2>
           {busy ? <div className="skeleton" /> : null}
           <div className="grid4" style={{ padding: '0 16px' }}>
-            {slots.map((s) => (
+            {visibleSlots.map((s) => (
               <button key={`${s.doctorId}-${s.startUtc}`} className={`chip ${slot?.startUtc === s.startUtc && slot?.doctorId === s.doctorId ? 'active' : ''}`}
                       onClick={() => { setSlot(s); go(5); }}>
                 {s.time}
               </button>
             ))}
           </div>
-          {!busy && slots.length === 0 ? (
+          {!busy && visibleSlots.length === 0 ? (
             <div className="page">
               <div className="alert info" style={{ margin: 0 }}>{t.noSlots}</div>
               <button className="btn mt" onClick={joinWaitlist} disabled={busy || waitlisted}>
@@ -341,7 +353,7 @@ export default function Booking() {
           <div className="card">
             <div className="between mb"><span className="muted">{t.chooseDoctor}</span><b>{slot.doctorName}</b></div>
             <div className="between mb"><span className="muted">{t.services}</span><b>{service ? localized(service, 'name', lang) : ''}</b></div>
-            <div className="between mb"><span className="muted">{t.chooseDate}</span><b>{new Date(slot.startUtc).toLocaleDateString(lang === 'RU' ? 'ru-RU' : 'uz-UZ', { day: 'numeric', month: 'long' })}</b></div>
+            <div className="between mb"><span className="muted">{t.chooseDate}</span><b>{formatDate(slot.startUtc, lang)}</b></div>
             <div className="between mb"><span className="muted">{t.chooseTime}</span><b>{slot.time}</b></div>
             {slot.roomName ? <div className="between mb"><span className="muted">🚪</span><b>{slot.roomName}</b></div> : null}
             <div className="between"><span className="muted">{t.price}</span><b>{money(slot.price, lang)}</b></div>

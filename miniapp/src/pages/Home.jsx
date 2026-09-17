@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, unwrap } from '../lib/api.js';
-import { useLang, localized, money } from '../lib/i18n.js';
+import { useLang, localized, money, formatDateTime } from '../lib/i18n.js';
 import ServiceSheet from '../components/ServiceSheet.jsx';
 import ComplaintSearch from '../components/ComplaintSearch.jsx';
 
@@ -56,9 +56,7 @@ export default function Home() {
           <div className="card tinted">
             <div className="between">
               <div>
-                <h3>{new Date(upcoming.startTime).toLocaleString(lang === 'RU' ? 'ru-RU' : 'uz-UZ', {
-                  day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
-                })}</h3>
+                <h3>{formatDateTime(upcoming.startTime, lang)}</h3>
                 <p className="muted small">
                   {upcoming.doctor.firstName} {upcoming.doctor.lastName}
                   {upcoming.room ? ` · ${upcoming.room.name}` : ''}
