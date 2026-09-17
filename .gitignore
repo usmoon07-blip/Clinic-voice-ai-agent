@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.local
+dist/
+build/
+*.log
+backend/public/tts/*
+!backend/public/tts/.gitkeep
+google-credentials.json
