@@ -6,8 +6,14 @@ noldan qurdirish uchun tayyor texnik topshiriq (prompt).
 ## Fayllar
 
 - [`prompts/clinic-voice-ai-agent-prompt-uz.md`](prompts/clinic-voice-ai-agent-prompt-uz.md)
-  — to'liq prompt (o'zbek tilida). AI dasturchiga (Claude Code / Cursor / ChatGPT)
-  o'zgartirmasdan nusxalab beriladi.
+  — to'liq prompt, o'zbek tilida.
+- [`prompts/clinic-voice-ai-agent-prompt-en.md`](prompts/clinic-voice-ai-agent-prompt-en.md)
+  — xuddi shu prompt, texnik qismi inglizcha. Bemorga ko'rinadigan matnlar
+  (voice agent prompti, dialoglar, SMS/Telegram xabarlari) ataylab o'zbek/rus tilida
+  qoldirilgan — ular mahsulotning haqiqiy matni, tarjima qilinmasligi kerak.
+
+AI dasturchiga berish uchun **inglizcha versiya tavsiya etiladi**: kod identifikatorlari va
+kutubxona hujjatlari baribir inglizcha, model spetsifikatsiyani aniqroq bajaradi.
 
 ## Qanday ishlatiladi
 
